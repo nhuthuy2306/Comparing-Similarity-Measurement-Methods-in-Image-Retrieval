@@ -2,6 +2,9 @@
 __pycache__/
 *.py[codz]
 *$py.class
+# Dữ liệu ảnh và file đặc trưng
+dataset/
+*.pkl
 
 # C extensions
 *.so
@@ -218,3 +221,4 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+e2e_test.py

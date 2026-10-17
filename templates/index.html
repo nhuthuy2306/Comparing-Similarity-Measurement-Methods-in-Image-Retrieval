@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="vi" data-bs-theme="light">
+
+<head>
+    <meta charset="UTF-8">
+    <title>So sánh Thuật toán CBIR</title>
+    <!-- Giao diện Bootstrap 5 Light Mode -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Thư viện biểu đồ và công thức toán học -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #212529;
+        }
+
+        .sticky-nav {
+            position: sticky;
+            top: 0;
+            background-color: #f8f9fa;
+            z-index: 1000;
+            padding-top: 20px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .img-result {
+            width: 100%;
+            aspect-ratio: 4/3;
+            object-fit: cover;
+            cursor: zoom-in;
+            border-radius: 6px;
+            transition: transform 0.2s;
+            margin-bottom: 5px;
+            border: 1px solid #ced4da;
+        }
+
+        .img-result:hover {
+            transform: scale(1.03);
+            border: 2px solid #0d6efd;
+        }
+
+        .sidebar {
+            background-color: #ffffff;
+            border-right: 1px solid #dee2e6;
+            height: 100vh;
+            overflow-y: auto;
+            position: sticky;
+            top: 0;
+        }
+
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .sidebar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+            background: #adb5bd;
+            border-radius: 10px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: #0d6efd;
+        }
+
+        .sidebar-img {
+            width: 100%;
+            max-height: 250px;
+            object-fit: cover;
+            border-radius: 6px;
+            border: 1px solid #ced4da;
+        }
+
+        .latex-box {
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+            text-align: center;
+            color: #495057;
+        }
+
+        .badge-mssv {
+            background-color: rgba(13, 110, 253, 0.1);
+            color: #0d6efd;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+
+        .modal-close-custom {
+            position: absolute;
+            top: -15px;
+            right: -15px;
+            background-color: #dc3545;
+            color: white;
+            border: 3px solid white;
+            border-radius: 50%;
+            width: 45px;
+            height: 45px;
+            font-size: 28px;
+            font-weight: bold;
+            line-height: 1;
+            z-index: 1055;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding-bottom: 4px;
+        }
+
+        .modal-close-custom:hover {
+            background-color: #bb2d3b;
+            transform: scale(1.1);
+        }
+
+        .nav-tabs .nav-link {
+            color: #6c757d;
+            border: none;
+        }
+
+        .nav-tabs .nav-link.active {
+            background-color: transparent;
+            border-bottom: 3px solid #0d6efd;
+            color: #212529;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container-fluid min-vh-100 d-flex flex-column">
+        <div class="row flex-grow-1">
+
+            <!-- ================= BẢNG ĐIỀU KHIỂN TRÁI ================= -->
+            <div class="col-md-3 col-lg-2 sidebar p-4 shadow-sm">
+                <h5 class="mb-3 fw-bold text-dark">ẢNH TRUY VẤN</h5>
+                <form method="POST" action="/" enctype="multipart/form-data">
+                    <input type="file" name="file"
+                        class="form-control form-control-sm mb-3 bg-white text-dark border-secondary" accept="image/*"
+                        onchange="document.getElementById('labelSelect').value='auto';" {% if not results %}required{%
+                        endif %}>
+
+                    {% if results %}
+                    <input type="hidden" name="hidden_b64" value="{{ results.img_b64 }}">
+                    <input type="hidden" name="hidden_hist" value='{{ results.query_hist | tojson }}'>
+                    <input type="hidden" name="hidden_hist_orig" value='{{ results.query_hist_orig | tojson }}'>
+
+                    <img src="data:image/jpeg;base64,{{ results.img_b64 }}" class="sidebar-img shadow-sm mb-2">
+
+                    <p class="text-dark fw-bold small mb-1 mt-2">Vector đặc trưng Color Histogram:</p>
+                    <div style="height: 120px; width: 100%;" class="mb-3">
+                        <canvas id="histChart"></canvas>
+                    </div>
+                    {% endif %}
+
+                    <hr class="border-secondary opacity-25">
+                    <h5 class="mb-3 fw-bold text-dark">ĐÁNH GIÁ & CẤU HÌNH</h5>
+
+                    <label class="form-label text-muted small">Gán nhãn truy vấn (Để tính Precision):</label>
+                    <select id="labelSelect" name="query_label"
+                        class="form-select form-select-sm mb-3 bg-white text-dark border-secondary">
+                        <option value="auto" {% if not results or request.form.get('query_label', 'auto' )=='auto'
+                            %}selected{% endif %}>Hệ thống tự nhận diện</option>
+                        {% for label in labels %}
+                        <option value="{{ label }}" {% if results and results.query_label==label %}selected{% endif %}>
+                            {{ label }}</option>
+                        {% endfor %}
+                    </select>
+
+                    <label class="form-label text-muted small">Số lượng ảnh (Top K):</label>
+                    <input type="number" name="top_k"
+                        class="form-control form-control-sm mb-4 bg-white text-dark border-secondary"
+                        value="{{ results.top_k if results else 10 }}" min="5" max="20">
+
+                    <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm">Phân tích & So sánh</button>
+                </form>
+
+                <hr class="border-secondary opacity-25 mt-4">
+                <h6 class="text-dark fw-bold">CHÚ THÍCH KẾT QUẢ</h6>
+                <p class="small text-muted mb-1"><span style="color:#198754;">🟢</span> <b>Đúng chủ đề:</b> Khớp nhãn.
+                </p>
+                <p class="small text-muted"><span style="color:#dc3545;">🔴</span> <b>Sai chủ đề:</b> Nhiễu.</p>
+            </div>
+
+            <!-- ================= KHÔNG GIAN HIỂN THỊ CHÍNH ================= -->
+            <div class="col-md-9 col-lg-10 p-0 position-relative">
+
+                <div class="sticky-nav px-4 pb-0 shadow-sm">
+                    <h2 class="fw-bold mb-1 text-dark">Đo Độ Tương Tự - So sánh phương pháp trong truy xuất ảnh</h2>
+                    <p class="mb-3 text-muted"><b>Nhóm 14</b> | MSSV: <span class="badge-mssv">N23DCCN016</span> & <span
+                            class="badge-mssv">N23DCCN061</span></p>
+
+                    <ul class="nav nav-tabs border-bottom-0" id="myTab" role="tablist">
+                        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab"
+                                data-bs-target="#tab-rank">📉 Xếp hạng Kết quả</button></li>
+                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab"
+                                data-bs-target="#tab-chart">📊 Đánh giá & So sánh</button></li>
+                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab"
+                                data-bs-target="#tab-theory">📖 Cơ sở Lý thuyết</button></li>
+                    </ul>
+                </div>
+
+                <div class="tab-content p-4">
+                    {% if results %}
+                    <div class="tab-pane fade show active" id="tab-rank">
+                        <div class="row">
+                            <div class="col-3">
+                                <h5 style="color: #0d6efd;" class="fw-bold">Euclidean <code>L2</code></h5>
+                                <div class="latex-box">$$ d = \sqrt{\sum (a_i - b_i)^2} $$</div>
+                                {% for item in results.euclid %}
+                                <img src="/img/{{ item.path | replace('\\', '/') }}" class="img-result"
+                                    onclick="showModal(this.src)">
+                                <div class="small text-muted mb-3">
+                                    {% if item.label == results.query_label %}<span style="color:#198754;">🟢</span>{%
+                                    else %}<span style="color:#dc3545;">🔴</span>{% endif %}
+                                    <b>{{ item.label }}</b> | Dist: {{ "%.3f"|format(item.dist) }}
+                                </div>
+                                {% endfor %}
+                            </div>
+
+                            <div class="col-3">
+                                <h5 style="color: #fd7e14;" class="fw-bold">Manhattan <code>L1</code></h5>
+                                <div class="latex-box">$$ d = \sum |a_i - b_i| $$</div>
+                                {% for item in results.manhat %}
+                                <img src="/img/{{ item.path | replace('\\', '/') }}" class="img-result"
+                                    onclick="showModal(this.src)">
+                                <div class="small text-muted mb-3">
+                                    {% if item.label == results.query_label %}<span style="color:#198754;">🟢</span>{%
+                                    else %}<span style="color:#dc3545;">🔴</span>{% endif %}
+                                    <b>{{ item.label }}</b> | Dist: {{ "%.3f"|format(item.dist) }}
+                                </div>
+                                {% endfor %}
+                            </div>
+
+                            <div class="col-3">
+                                <h5 style="color: #198754;" class="fw-bold">Cosine <code>CS</code></h5>
+                                <div class="latex-box">$$ d = 1 - \frac{a \cdot b}{||a|| \cdot ||b||} $$</div>
+                                {% for item in results.cosine %}
+                                <img src="/img/{{ item.path | replace('\\', '/') }}" class="img-result"
+                                    onclick="showModal(this.src)">
+                                <div class="small text-muted mb-3">
+                                    {% if item.label == results.query_label %}<span style="color:#198754;">🟢</span>{%
+                                    else %}<span style="color:#dc3545;">🔴</span>{% endif %}
+                                    <b>{{ item.label }}</b> | Dist: {{ "%.3f"|format(item.dist) }}
+                                </div>
+                                {% endfor %}
+                            </div>
+
+                            <div class="col-3">
+                                <h5 style="color: #6f42c1;" class="fw-bold">Chi-square <code>χ²</code></h5>
+                                <div class="latex-box">$$ d = \sum \frac{(a_i - b_i)^2}{a_i + b_i} $$</div>
+                                {% for item in results.chi2 %}
+                                <img src="/img/{{ item.path | replace('\\', '/') }}" class="img-result"
+                                    onclick="showModal(this.src)">
+                                <div class="small text-muted mb-3">
+                                    {% if item.label == results.query_label %}<span style="color:#198754;">🟢</span>{%
+                                    else %}<span style="color:#dc3545;">🔴</span>{% endif %}
+                                    <b>{{ item.label }}</b> | Dist: {{ "%.3f"|format(item.dist) }}
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tab-pane fade" id="tab-chart">
+                        <h4 class="text-dark fw-bold mb-3">Đánh giá Tổng quan & Biểu đồ Hiệu năng</h4>
+
+                        <div class="row text-center my-4">
+                            <div class="col-3">
+                                <div class="card bg-white border shadow-sm">
+                                    <div class="card-body">
+                                        <h6 class="text-muted">Euclidean Precision</h6>
+                                        <h4 class="text-dark fw-bold">{{ "%.1f"|format(results.prec_euclid) }}%</h4>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="card bg-white border shadow-sm">
+                                    <div class="card-body">
+                                        <h6 class="text-muted">Manhattan Precision</h6>
+                                        <h4 class="text-dark fw-bold">{{ "%.1f"|format(results.prec_manhat) }}%</h4>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="card bg-white border shadow-sm">
+                                    <div class="card-body">
+                                        <h6 class="text-muted">Cosine Precision</h6>
+                                        <h4 class="text-dark fw-bold">{{ "%.1f"|format(results.prec_cosine) }}%</h4>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="card bg-white border shadow-sm">
+                                    <div class="card-body">
+                                        <h6 class="text-muted">Chi-square Precision</h6>
+                                        <h4 class="text-dark fw-bold">{{ "%.1f"|format(results.prec_chi2) }}%</h4>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-4 rounded border shadow-sm mb-4" style="height: 400px;">
+                            <canvas id="precisionChart"></canvas>
+                        </div>
+
+                        <hr class="border-secondary opacity-25 mt-5">
+
+                        {% if results %}
+                        {% set top_score = results.sorted_algos[0][1] %}
+                        {% set top_algos = [] %}
+                        {% for algo, score in results.sorted_algos %}
+                        {% if score == top_score %}
+                        {% set _ = top_algos.append(algo) %}
+                        {% endif %}
+                        {% endfor %}
+
+                        <div class="alert alert-success border-success shadow-sm p-4 mb-4"
+                            style="background-color: #d1e7dd; color: #0f5132;">
+                            <h5 class="fw-bold mb-2">🏆 Phương pháp tối ưu nhất (Top 1):</h5>
+                            <p class="mb-0 fs-5">
+                                {% if top_algos | length > 1 %}
+                                Các phương pháp <strong>{{ top_algos | join(' và ') }}</strong> xuất sắc dẫn đầu với độ
+                                chính xác: <b>{{ "%.1f"|format(top_score) }}%</b>.
+                                {% else %}
+                                Phương pháp <strong>{{ top_algos[0] }}</strong> xuất sắc dẫn đầu với độ chính xác cao
+                                nhất: <b>{{ "%.1f"|format(top_score) }}%</b>.
+                                {% endif %}
+                            </p>
+                        </div>
+
+                        <p class="fw-bold text-dark mb-3" style="font-size: 1.1rem;">Bảng xếp hạng chi tiết:</p>
+                        <div class="mb-4 ps-1">
+                            {% set grouped_ranks = [] %}
+                            {% set ns = namespace(current_score=None, current_rank=1, current_algos=[]) %}
+
+                            {% for algo, score in results.sorted_algos %}
+                            {% if ns.current_score is none %}
+                            {% set ns.current_score = score %}
+                            {% set ns.current_rank = 1 %}
+                            {% set _ = ns.current_algos.append(algo ~ ' (' ~ "%.1f"|format(score) ~ '%)') %}
+                            {% elif score == ns.current_score %}
+                            {% set _ = ns.current_algos.append(algo ~ ' (' ~ "%.1f"|format(score) ~ '%)') %}
+                            {% else %}
+                            {% set _ = grouped_ranks.append({'rank': ns.current_rank, 'text': ns.current_algos | join(',
+                            '), 'score': ns.current_score}) %}
+                            {% set ns.current_score = score %}
+                            {% set ns.current_rank = ns.current_rank + 1 %}
+                            <!-- Đã cập nhật thành chuẩn Dense Ranking 1-2-3 -->
+                            {% set ns.current_algos = [algo ~ ' (' ~ "%.1f"|format(score) ~ '%)'] %}
+                            {% endif %}
+                            {% if loop.last %}
+                            {% set _ = grouped_ranks.append({'rank': ns.current_rank, 'text': ns.current_algos | join(',
+                            '), 'score': ns.current_score}) %}
+                            {% endif %}
+                            {% endfor %}
+
+                            {% for group in grouped_ranks %}
+                            <p class="mb-2 text-dark" style="font-size: 0.95rem;">
+                                <b>Hạng {{ group.rank }}: {{ group.text }}</b>
+                            </p>
+                            {% endfor %}
+                        </div>
+
+                        <div class="p-4 rounded border shadow-sm bg-white">
+                            <h6 class="text-dark mb-3 fw-bold" style="font-size: 1.05rem;">🔍 Phân tích chuyên sâu:</h6>
+
+                            {% set worst_score = results.sorted_algos[-1][1] %}
+                            {% set worst_algos = [] %}
+                            {% for algo, score in results.sorted_algos %}
+                            {% if score == worst_score %}
+                            {% set _ = worst_algos.append(algo) %}
+                            {% endif %}
+                            {% endfor %}
+
+                            {% if top_score == worst_score %}
+                            <p class="text-secondary mb-2" style="line-height: 1.7; font-size: 0.95rem;">
+                                - <b>Đánh giá hiệu năng:</b> Cả 4 phương pháp đều đạt mức độ chính xác tương đương nhau
+                                (<b>{{ "%.1f"|format(top_score) }}%</b>) đối với ảnh truy vấn này.
+                            </p>
+                            <p class="text-secondary mb-0" style="line-height: 1.7; font-size: 0.95rem;">
+                                - <b>Kết luận tổng quan:</b> Không gian phân phối màu sắc của mẫu này không tạo ra sự
+                                phân hóa giữa các khoảng cách hình học và thống kê.
+                            </p>
+                            {% else %}
+                            <p class="text-secondary mb-2" style="line-height: 1.7; font-size: 0.95rem;">
+                                - <b>Về phương pháp dẫn đầu:</b>
+                                {% if top_algos | length > 1 %}
+                                Các phương pháp <strong>{{ top_algos | join(' và ') }}</strong> cùng đạt hạng đầu nhờ
+                                tính ưu việt trong việc đo lường độ tương đồng phân bố màu sắc.
+                                {% else %}
+                                Phương pháp <strong>{{ top_algos[0] }}</strong> đạt độ chính xác cao nhất vì {{
+                                results.pros[top_algos[0]] }}.
+                                {% endif %}
+                            </p>
+
+                            <p class="text-secondary mb-2" style="line-height: 1.7; font-size: 0.95rem;">
+                                - <b>Về phương pháp xếp cuối:</b>
+                                {% if worst_algos | length > 1 %}
+                                Ngược lại, các phương pháp <strong>{{ worst_algos | join(' và ') }}</strong> cùng xếp
+                                cuối bảng (<b>{{ "%.1f"|format(worst_score) }}%</b>) do {{ results.cons[worst_algos[0]]
+                                }}.
+                                {% else %}
+                                Ngược lại, phương pháp <strong>{{ worst_algos[0] }}</strong> xếp cuối cùng (<b>{{
+                                    "%.1f"|format(worst_score) }}%</b>) do {{ results.cons[worst_algos[0]] }}.
+                                {% endif %}
+                            </p>
+
+                            <p class="text-secondary mb-0" style="line-height: 1.7; font-size: 0.95rem;">
+                                - <b>Đánh giá tổng quan:</b> Sự chênh lệch lên đến <strong>{{ "%.1f"|format(top_score -
+                                    worst_score) }}%</strong> giữa nhóm dẫn đầu và nhóm xếp cuối minh chứng mạnh mẽ rằng
+                                việc lựa chọn công thức tính khoảng cách quyết định trực tiếp đến hiệu năng của hệ thống
+                                CBIR.
+                            </p>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="tab-pane fade" id="tab-theory">
+                        <h4 class="text-dark fw-bold mb-3">Chi tiết Công thức và Lý thuyết</h4>
+                        <div class="row mt-4">
+                            <div class="col-6 mb-4">
+                                <div class="alert alert-light border text-dark shadow-sm">
+                                    <h5 style="color: #0d6efd;" class="fw-bold">1. Khoảng cách Euclidean (L2)</h5>
+                                    $$ d(H_1, H_2) = \sqrt{\sum_{i=1}^{n} (H_1[i] - H_2[i])^2} $$
+                                    <ul>
+                                        <li><b>Bản chất:</b> Đo khoảng cách đường thẳng ngắn nhất.</li>
+                                        <li><b>Nhược điểm:</b> Phạt rất nặng các điểm sai lệch cục bộ (outliers).</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="col-6 mb-4">
+                                <div class="alert alert-light border text-dark shadow-sm">
+                                    <h5 style="color: #fd7e14;" class="fw-bold">2. Khoảng cách Manhattan (L1)</h5>
+                                    $$ d(H_1, H_2) = \sum_{i=1}^{n} |H_1[i] - H_2[i]| $$
+                                    <ul>
+                                        <li><b>Bản chất:</b> Tính tổng khoảng cách độ chênh lệch tuyệt đối.</li>
+                                        <li><b>Ưu điểm:</b> Hoạt động ổn định hơn Euclidean trong không gian nhiều
+                                            chiều.</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="alert alert-light border text-dark shadow-sm">
+                                    <h5 style="color: #198754;" class="fw-bold">3. Độ tương tự Cosine (CS)</h5>
+                                    $$ d(H_1, H_2) = 1 - \frac{\sum (H_1[i] \times H_2[i])}{\sqrt{\sum H_1[i]^2} \times
+                                    \sqrt{\sum H_2[i]^2}} $$
+                                    <ul>
+                                        <li><b>Bản chất:</b> Đo góc lệch giữa hai vector đặc trưng.</li>
+                                        <li><b>Ưu điểm:</b> Bỏ qua sự thay đổi về cường độ sáng tối của ảnh.</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="alert alert-light border text-dark shadow-sm">
+                                    <h5 style="color: #6f42c1;" class="fw-bold">4. Khoảng cách Chi-square (χ²)</h5>
+                                    $$ d(H_1, H_2) = \sum_{i=1}^{n} \frac{(H_1[i] - H_2[i])^2}{H_1[i] + H_2[i]} $$
+                                    <ul>
+                                        <li><b>Bản chất:</b> Kiểm định thống kê sự khác biệt giữa hai biểu đồ.</li>
+                                        <li><b>Ưu điểm:</b> Mẫu số giúp chuẩn hóa sai số, mang lại độ chính xác cực cao.
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% else %}
+                    <div class="text-center mt-5 text-muted">
+                        <h3>Vui lòng tải ảnh lên ở thanh bên trái để bắt đầu phân tích.</h3>
+                    </div>
+                    {% endif %}
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL PHÓNG TO ẢNH -->
+    <div class="modal fade" id="imageModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content bg-white border-0 position-relative shadow-lg">
+                <button type="button" class="modal-close-custom" data-bs-dismiss="modal"
+                    aria-label="Close">&times;</button>
+                <div class="modal-body text-center p-0">
+                    <img id="modalImgOutput" src="" class="img-fluid rounded shadow"
+                        style="max-height: 90vh; border: 4px solid #fff;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function showModal(src) {
+            document.getElementById('modalImgOutput').src = src;
+            var myModal = new bootstrap.Modal(document.getElementById('imageModal'));
+            myModal.show();
+        }
+
+        {% if results %}
+        const ctx = document.getElementById('precisionChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Euclidean (L2)', 'Manhattan (L1)', 'Cosine (CS)', 'Chi-square (χ²)'],
+                datasets: [{
+                    label: 'Độ chính xác (%)',
+                    data: [
+                        {{ results.prec_euclid }},
+                {{ results.prec_manhat }},
+                        {{ results.prec_cosine }},
+            {{ results.prec_chi2 }}
+                    ],
+            backgroundColor: '#0d6efd',
+            borderRadius: 4,
+            maxBarThickness: 45
+                }]
+            },
+            options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, max: 100, grid: { color: 'rgba(0, 0, 0, 0.05)' }, ticks: { color: '#212529', font: { size: 14 } } },
+                x: { grid: { display: false }, ticks: { color: '#212529', font: { size: 14, weight: 'bold' } } }
+            }
+        }
+        });
+
+        const histCtx = document.getElementById('histChart').getContext('2d');
+        new Chart(histCtx, {
+            type: 'line',
+            data: {
+                labels: Array.from({ length: 512 }, (_, i) => i),
+                datasets: [{
+                    data: {{ results.query_hist | tojson | safe }},
+            borderColor: '#0d6efd',
+            borderWidth: 1.5,
+            pointRadius: 0,
+            tension: 0.1
+        }]
+            },
+            options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { enabled: false } },
+            scales: {
+                x: { ticks: { color: '#6c757d', font: { size: 10 }, maxTicksLimit: 6 }, grid: { display: false } },
+                y: { ticks: { color: '#6c757d', font: { size: 10 }, maxTicksLimit: 5 }, grid: { color: 'rgba(0, 0, 0, 0.03)' } }
+            }
+        }
+        });
+        {% endif %}
+    </script>
+</body>
+
+</html>
