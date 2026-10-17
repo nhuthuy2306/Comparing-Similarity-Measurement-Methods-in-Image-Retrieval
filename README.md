@@ -1,4 +1,4 @@
-# 🔍 Hệ thống Truy xuất Ảnh dựa trên Nội dung (CBIR) - Nhóm 14
+# 🔍 SO SÁNH CÁC PHƯƠNG PHÁP ĐO ĐỘ TƯƠNG TỰ TRONG TRUY XUẤT ẢNH DỰA TRÊN  ĐẶC TRƯNG COLOR HISTOGRAM - Nhóm 14
 
 ## 📖 Giới thiệu Tổng quan
 Dự án ứng dụng công nghệ **Truy xuất Ảnh dựa trên Nội dung** (Content‑Based Image Retrieval - CBIR), tập trung vào việc trích xuất đặc trưng màu sắc (Color Histogram) trong không gian màu **HSV**.
@@ -36,7 +36,7 @@ Dự án sử dụng Supabase để lưu trữ vector đặc trưng. Bạn cần
 SUPABASE_URL="https://[PROJECT-ID].supabase.co"
 SUPABASE_KEY="[YOUR-ANON-PUBLIC-KEY]"
 ```
-> (Lưu ý: Liên hệ nhóm phát triển để nhận Key thực tế nếu bạn là người chấm thi.)
+> (Lưu ý: Liên hệ nhóm phát triển để nhận Key thực tế nếu bạn cần.)
 
 ### 4. Khởi chạy Ứng dụng
 ```bash
