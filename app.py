@@ -1,12 +1,15 @@
 import os
 import cv2
-from flask import abort
 import numpy as np
-import pickle
 import base64
 import json
 from scipy.spatial import distance
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request, abort, send_file
+from supabase import create_client, Client
+from dotenv import load_dotenv
+
+# Kích hoạt việc đọc file .env
+load_dotenv()
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # Giới hạn 16MB chống lỗi 413
@@ -14,13 +17,15 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # Giới hạn 16MB chống
 # ------------------- CONFIGURATION -------------------
 BIN_SIZE = (8, 8, 8)             
 NORMALIZATION = "l1"             
-# ---------------------------------------------------
 
-def load_data():
-    with open("features.pkl", "rb") as f:
-        return pickle.load(f)
+# ------------------- SUPABASE SETUP -------------------
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
-_raw_database = load_data()
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise ValueError("Thiếu cấu hình Supabase! Vui lòng kiểm tra lại file .env")
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def normalize_hist(hist, norm_type="l2"):
     if norm_type == "l1":
@@ -31,32 +36,39 @@ def normalize_hist(hist, norm_type="l2"):
         hist = cv2.normalize(hist, None, norm_type=cv2.NORM_L2)
     return hist.flatten()
 
-processed_db = []
-for item in _raw_database:
-    img_path = item.get("path", "")
-    img = cv2.imread(img_path, cv2.IMREAD_COLOR)
+def load_data_from_supabase():
+    print("Đang tải dữ liệu từ Supabase... Vui lòng đợi!")
+    # Lệnh select('*') lấy toàn bộ. limit(2000) để đảm bảo lấy đủ 1000 ảnh.
+    response = supabase.table('cbir_features').select('*').limit(2000).execute()
     
-    # Cơ chế an toàn: Nếu không tìm thấy file ảnh gốc, dùng luôn histogram cũ
-    if img is None:
-        hist = item.get("histogram", np.zeros((512,), dtype=np.float32))
-        processed_db.append({
-            "path": img_path,
-            "label": item.get("label", "unknown"),
-            "histogram": hist,
-            "hist_original": hist.copy()
-        })
-    else:
-        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-        hist = cv2.calcHist([hsv], [0, 1, 2], None, BIN_SIZE, [0, 180, 0, 256, 0, 256])
-        hist = normalize_hist(hist, NORMALIZATION)
-        processed_db.append({
-            "path": img_path,
-            "label": item.get("label", "unknown"),
-            "histogram": hist,
-            "hist_original": hist.copy()
-        })
+    db_data = []
+    for row in response.data:
+        img_url = row["image_url"]
+        
+        # 1. Cắt URL để lấy nhãn chuẩn xác nhất (tránh lỗi nhãn cũ trong DB)
+        url_parts = img_url.split('/')
+        actual_label = url_parts[-2] if len(url_parts) >= 2 else row["label"]
 
-database = processed_db
+        # Lấy mảng vector thô từ Database
+        raw_hist = np.array(row["histogram"], dtype=np.float32)
+        raw_orig = np.array(row["hist_original"], dtype=np.float32)
+        
+        # 2. FIX LỖI TOÁN HỌC: Ép chuẩn hóa L1 lại toàn bộ dữ liệu tải về RAM
+        clean_hist = normalize_hist(raw_hist, NORMALIZATION)
+        clean_orig = normalize_hist(raw_orig, NORMALIZATION)
+
+        db_data.append({
+            "path": img_url,
+            "label": actual_label,
+            "histogram": clean_hist,
+            "hist_original": clean_orig
+        })
+    print(f"Tải thành công {len(db_data)} đặc trưng ảnh từ Database!")
+    return db_data
+
+# Load dữ liệu vào RAM ngay khi khởi động server
+database = load_data_from_supabase()
+# ---------------------------------------------------
 
 def chi2_distance(histA, histB, eps=1e-10):
     return 0.5 * np.sum([((a - b) ** 2) / (a + b + eps) for (a, b) in zip(histA, histB)])
@@ -72,6 +84,7 @@ def auto_predict_label(query_hist, database):
             best_label = item["label"]
     return best_label
 
+# Route này giữ lại phòng trường hợp load ảnh cục bộ
 @app.route('/img/<path:filepath>')
 def serve_img(filepath):
     decoded_path = filepath.replace('/', os.sep)
@@ -120,8 +133,11 @@ def index():
         top_k = int(request.form.get('top_k', 10))
         
         res_euclid, res_manhat, res_cosine, res_chi2 = [], [], [], []
+        
+        # Quá trình so sánh cực nhanh vì DB trong RAM đã được "rửa sạch" ở hàm load_data_from_supabase
         for item in database:
             db_hist = item["histogram"]
+            
             eu_dist = distance.euclidean(query_hist, db_hist)
             man_dist = distance.cityblock(query_hist, db_hist)
             cos_dist = distance.cosine(query_hist, db_hist)
@@ -170,7 +186,6 @@ def index():
             "manhat": res_manhat,
             "cosine": res_cosine,
             "chi2": res_chi2,
-            # CHUYỀN BIẾN NGẮN GỌN CHỐNG GÃY DÒNG CHO HTML
             "prec_euclid": precisions["Euclidean (L2)"],
             "prec_manhat": precisions["Manhattan (L1)"],
             "prec_cosine": precisions["Cosine (CS)"],
@@ -184,9 +199,6 @@ def index():
         return render_template('index.html', labels=labels, results=None)
 
 if __name__ == '__main__':
-    # Chế độ mặc định của Flask (chỉ khởi động lại server, không tự refresh trình duyệt)
-    # app.run(debug=True, port=5000)
-    
     # Chế độ Live Reload (Tự động refresh trình duyệt khi code HTML/Python thay đổi)
     from livereload import Server
     app.debug = True

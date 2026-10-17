@@ -211,10 +211,10 @@
                         <div class="row">
                             <div class="col-3">
                                 <h5 style="color: #0d6efd;" class="fw-bold">Euclidean <code>L2</code></h5>
-                                <div class="latex-box">$$ d = \sqrt{\sum (a_i - b_i)^2} $$</div>
+                                <div class="latex-box">$$d = \sqrt{\sum (a_i - b_i)^2}$$</div>
                                 {% for item in results.euclid %}
-                                <img src="/img/{{ item.path | replace('\\', '/') }}" class="img-result"
-                                    onclick="showModal(this.src)">
+                                <!-- Sửa đường dẫn ảnh tại đây -->
+                                <img src="{{ item.path }}" class="img-result" onclick="showModal(this.src)">
                                 <div class="small text-muted mb-3">
                                     {% if item.label == results.query_label %}<span style="color:#198754;">🟢</span>{%
                                     else %}<span style="color:#dc3545;">🔴</span>{% endif %}
@@ -225,10 +225,10 @@
 
                             <div class="col-3">
                                 <h5 style="color: #fd7e14;" class="fw-bold">Manhattan <code>L1</code></h5>
-                                <div class="latex-box">$$ d = \sum |a_i - b_i| $$</div>
+                                <div class="latex-box">$$d = \sum \vert{}a_i - b_i\vert{}$$</div>
                                 {% for item in results.manhat %}
-                                <img src="/img/{{ item.path | replace('\\', '/') }}" class="img-result"
-                                    onclick="showModal(this.src)">
+                                <!-- Sửa đường dẫn ảnh tại đây -->
+                                <img src="{{ item.path }}" class="img-result" onclick="showModal(this.src)">
                                 <div class="small text-muted mb-3">
                                     {% if item.label == results.query_label %}<span style="color:#198754;">🟢</span>{%
                                     else %}<span style="color:#dc3545;">🔴</span>{% endif %}
@@ -239,10 +239,11 @@
 
                             <div class="col-3">
                                 <h5 style="color: #198754;" class="fw-bold">Cosine <code>CS</code></h5>
-                                <div class="latex-box">$$ d = 1 - \frac{a \cdot b}{||a|| \cdot ||b||} $$</div>
+                                <div class="latex-box">$$d = 1 - \frac{a \cdot b}{\vert{}\vert{}a\vert{}\vert{} \cdot
+                                    \vert{}\vert{}b\vert{}\vert{}}$$</div>
                                 {% for item in results.cosine %}
-                                <img src="/img/{{ item.path | replace('\\', '/') }}" class="img-result"
-                                    onclick="showModal(this.src)">
+                                <!-- Sửa đường dẫn ảnh tại đây -->
+                                <img src="{{ item.path }}" class="img-result" onclick="showModal(this.src)">
                                 <div class="small text-muted mb-3">
                                     {% if item.label == results.query_label %}<span style="color:#198754;">🟢</span>{%
                                     else %}<span style="color:#dc3545;">🔴</span>{% endif %}
@@ -253,10 +254,10 @@
 
                             <div class="col-3">
                                 <h5 style="color: #6f42c1;" class="fw-bold">Chi-square <code>χ²</code></h5>
-                                <div class="latex-box">$$ d = \sum \frac{(a_i - b_i)^2}{a_i + b_i} $$</div>
+                                <div class="latex-box">$$d = \sum \frac{(a_i - b_i)^2}{a_i + b_i}$$</div>
                                 {% for item in results.chi2 %}
-                                <img src="/img/{{ item.path | replace('\\', '/') }}" class="img-result"
-                                    onclick="showModal(this.src)">
+                                <!-- Sửa đường dẫn ảnh tại đây -->
+                                <img src="{{ item.path }}" class="img-result" onclick="showModal(this.src)">
                                 <div class="small text-muted mb-3">
                                     {% if item.label == results.query_label %}<span style="color:#198754;">🟢</span>{%
                                     else %}<span style="color:#dc3545;">🔴</span>{% endif %}
@@ -427,8 +428,9 @@
                         <div class="row mt-4">
                             <div class="col-6 mb-4">
                                 <div class="alert alert-light border text-dark shadow-sm">
-                                    <h5 style="color: #0d6efd;" class="fw-bold">1. Khoảng cách Euclidean (L2)</h5>
-                                    $$ d(H_1, H_2) = \sqrt{\sum_{i=1}^{n} (H_1[i] - H_2[i])^2} $$
+                                    <h5 style="color: #0d6efd;" class="fw-bold">1. Khoảng cách Euclidean (L2)
+                                    </h5>
+                                    $$d(H_1, H_2) = \sqrt{\sum_{i=1}^{n} (H_1[i] - H_2[i])^2}$$
                                     <ul>
                                         <li><b>Bản chất:</b> Đo khoảng cách đường thẳng ngắn nhất.</li>
                                         <li><b>Nhược điểm:</b> Phạt rất nặng các điểm sai lệch cục bộ (outliers).</li>
@@ -438,7 +440,7 @@
                             <div class="col-6 mb-4">
                                 <div class="alert alert-light border text-dark shadow-sm">
                                     <h5 style="color: #fd7e14;" class="fw-bold">2. Khoảng cách Manhattan (L1)</h5>
-                                    $$ d(H_1, H_2) = \sum_{i=1}^{n} |H_1[i] - H_2[i]| $$
+                                    $$d(H_1, H_2) = \sum_{i=1}^{n} \vert{}H_1[i] - H_2[i]\vert{}$$
                                     <ul>
                                         <li><b>Bản chất:</b> Tính tổng khoảng cách độ chênh lệch tuyệt đối.</li>
                                         <li><b>Ưu điểm:</b> Hoạt động ổn định hơn Euclidean trong không gian nhiều
@@ -449,8 +451,8 @@
                             <div class="col-6">
                                 <div class="alert alert-light border text-dark shadow-sm">
                                     <h5 style="color: #198754;" class="fw-bold">3. Độ tương tự Cosine (CS)</h5>
-                                    $$ d(H_1, H_2) = 1 - \frac{\sum (H_1[i] \times H_2[i])}{\sqrt{\sum H_1[i]^2} \times
-                                    \sqrt{\sum H_2[i]^2}} $$
+                                    $$d(H_1, H_2) = 1 - \frac{\sum (H_1[i] \times H_2[i])}{\sqrt{\sum H_1[i]^2} \times
+                                    \sqrt{\sum H_2[i]^2}}$$
                                     <ul>
                                         <li><b>Bản chất:</b> Đo góc lệch giữa hai vector đặc trưng.</li>
                                         <li><b>Ưu điểm:</b> Bỏ qua sự thay đổi về cường độ sáng tối của ảnh.</li>
@@ -460,7 +462,7 @@
                             <div class="col-6">
                                 <div class="alert alert-light border text-dark shadow-sm">
                                     <h5 style="color: #6f42c1;" class="fw-bold">4. Khoảng cách Chi-square (χ²)</h5>
-                                    $$ d(H_1, H_2) = \sum_{i=1}^{n} \frac{(H_1[i] - H_2[i])^2}{H_1[i] + H_2[i]} $$
+                                    $$d(H_1, H_2) = \sum_{i=1}^{n} \frac{(H_1[i] - H_2[i])^2}{H_1[i] + H_2[i]}$$
                                     <ul>
                                         <li><b>Bản chất:</b> Kiểm định thống kê sự khác biệt giữa hai biểu đồ.</li>
                                         <li><b>Ưu điểm:</b> Mẫu số giúp chuẩn hóa sai số, mang lại độ chính xác cực cao.
