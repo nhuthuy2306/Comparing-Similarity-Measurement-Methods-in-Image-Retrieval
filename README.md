@@ -50,6 +50,7 @@ Sau khi Terminal báo **thành công**, hãy mở trình duyệt web và truy c�
  ┣ 📂 templates           # Giao diện web (index.html)
  ┣ 📜 app.py              # Server Flask chính, xử lý logic Web và kết nối DB
  ┣ 📜 extract_and_upload.py # Script tự động trích xuất vector và đẩy lên Supabase
+ ┣ 📜 evaluate.py         # Script đánh giá các phương pháp đo độ tương đồng
  ┣ 📜 requirements.txt    # Danh sách thư viện Python
  ┣ 📜 .env                # File cấu hình bảo mật (không đưa lên Git)
  ┗ 📜 README.md           # Tài liệu hướng dẫn này
